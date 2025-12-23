@@ -155,14 +155,27 @@ export default function StatusPage() {
           </div>
         </div>
 
-        {/* Cart Screenshot with Edit Option */}
-        <div className="card p-4 mb-6">
-          <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <span>📸</span> Your Cart
+        {/* Cart Screenshot with Edit Option - Improved UI */}
+        <div className="card p-6 bg-white border-2 border-orange-100 shadow-lg rounded-2xl flex flex-col items-center mb-6">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 text-lg">
+            <span role="img" aria-label="camera">📸</span> Your Cart Screenshot
           </h3>
-          <img src={data.cartImageUrl} alt="Cart" className="w-full max-h-80 object-contain rounded-xl bg-gray-50 mb-2" />
+          <div className="w-full flex justify-center items-center">
+            <img
+              src={data.cartImageUrl}
+              alt="Cart"
+              className="max-w-xs max-h-80 object-contain rounded-xl border-2 border-gray-200 shadow-md cursor-zoom-in hover:scale-105 hover:shadow-xl transition-transform duration-200 bg-gray-50"
+              onClick={() => window.open(data.cartImageUrl, '_blank')}
+              title="Click to view full size"
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-2 text-center italic">Click the image to view in full size</p>
           {/* Allow edit if payment not submitted */}
-          {!data.payment && <EditScreenshot id={id} setData={setData} />}
+          {!data.payment && (
+            <div className="w-full flex flex-col items-center mt-4">
+              <EditScreenshot id={id} setData={setData} customUI />
+            </div>
+          )}
         </div>
 
         {/* Pricing Card */}

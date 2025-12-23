@@ -299,18 +299,21 @@ export default function AdminRequestDetail() {
               </div>
             </div>
 
-            {/* Cart Image */}
-            <div className="card p-5">
-              <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                <span>📸</span> Cart Screenshot
+            {/* Cart Screenshot - Improved UI */}
+            <div className="card p-6 bg-white border-2 border-orange-100 shadow-lg rounded-2xl flex flex-col items-center mb-4">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 text-lg">
+                <span role="img" aria-label="camera">📸</span> Cart Screenshot
               </h3>
-              <img 
-                src={data.cartImageUrl} 
-                alt="Cart" 
-                className="w-full rounded-xl border cursor-pointer hover:opacity-90 transition-opacity" 
-                onClick={() => window.open(data.cartImageUrl, '_blank')}
-              />
-              <p className="text-xs text-gray-400 mt-2 text-center">Click to open full size</p>
+              <div className="w-full flex justify-center items-center">
+                <img
+                  src={data.cartImageUrl}
+                  alt="Cart"
+                  className="max-w-xs max-h-80 object-contain rounded-xl border-2 border-gray-200 shadow-md cursor-zoom-in hover:scale-105 hover:shadow-xl transition-transform duration-200 bg-gray-50"
+                  onClick={() => window.open(data.cartImageUrl, '_blank')}
+                  title="Click to view full size"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-2 text-center italic">Click the image to view in full size</p>
             </div>
           </div>
 
