@@ -49,12 +49,26 @@ Open http://localhost:3000
 
 ---
 
-## Cloudinary Setup
-1. Create a free Cloudinary account.
-2. Go to Settings → Upload → Add upload preset.
-3. Set **Signing Mode** to **Unsigned**.
-4. Copy the preset name to `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`.
-5. Copy your cloud name to `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`.
+## Cloudinary Setup (Required for Production Uploads)
+1. Create a free Cloudinary account at https://cloudinary.com/.
+2. Go to your Cloudinary dashboard and copy your **Cloud name**, **API key**, and **API secret**.
+3. In your `.env` file, add:
+	```env
+	CLOUDINARY_CLOUD_NAME=your-cloud-name
+	CLOUDINARY_API_KEY=your-api-key
+	CLOUDINARY_API_SECRET=your-api-secret
+	```
+4. On Render or your deployment platform, add these same variables in the environment settings.
+5. No unsigned preset is needed; uploads are handled server-side for security.
+
+### How it works
+- User cart screenshots are uploaded directly to Cloudinary via the `/api/upload` route.
+- The returned Cloudinary URL is stored and used for display.
+- Uploaded images are persistent and globally accessible.
+
+### Feature: Edit Screenshot Before Payment
+- Users can replace their uploaded cart screenshot on the order status page **until payment is submitted**.
+- After payment, the screenshot cannot be changed.
 
 ---
 
