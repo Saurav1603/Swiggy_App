@@ -255,20 +255,20 @@ export default function AdminRequestDetail() {
   return (
     <Layout>
       <div className="animate-fadeIn">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/admin" className="text-gray-400 hover:text-gray-600 transition-colors">
-            ← Back
+        {/* Header - Improved for Mobile, Color, Font, Back Button */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 mb-8 bg-orange-50/60 px-4 sm:px-6 py-4 rounded-2xl shadow-sm border border-orange-100 relative">
+          <Link href="/admin" className="inline-flex items-center gap-2 text-orange-600 hover:text-orange-700 font-semibold text-base px-3 py-2 rounded-lg bg-orange-100/80 shadow transition-all focus:outline-none focus:ring-2 focus:ring-orange-300">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            Back
           </Link>
-          <div className="flex-1">
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">{data.name}</h1>
-            <p className="text-sm text-gray-400 font-mono">{data.id}</p>
+          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-orange-700 tracking-tight truncate font-sans">{data.name}</h1>
+            <span className="px-2 py-1 rounded bg-orange-100 text-xs font-mono text-orange-500 mt-1 sm:mt-0">{data.id}</span>
           </div>
-          <span className={`status-badge ${
-            data.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-            data.status === 'PAYMENT_RECEIVED' ? 'bg-emerald-100 text-emerald-700' :
-            'bg-orange-100 text-orange-700'
-          }`}>
+          <span className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold shadow-md text-base whitespace-nowrap mt-3 sm:mt-0
+            ${data.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
+              data.status === 'PAYMENT_RECEIVED' ? 'bg-emerald-100 text-emerald-700' :
+              'bg-orange-200 text-orange-700 animate-pulse'}`}>
             {currentStatus.icon} {currentStatus.label}
           </span>
         </div>
