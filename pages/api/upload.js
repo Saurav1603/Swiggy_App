@@ -1,5 +1,4 @@
-import fs from 'fs'
-import path from 'path'
+import cloudinary from '../../lib/cloudinary'
 
 export const config = {
   api: {
@@ -35,23 +34,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Image must be under 5 MB' })
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true })
-    }
-
-    // Generate unique filename
-    const ext = filename.split('.').pop() || 'png'
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`
-    const filePath = path.join(uploadsDir, uniqueName)
-
-    // Write file
-    fs.writeFileSync(filePath, buffer)
-
-    // Return public URL
-    const url = `/uploads/${uniqueName}`
-    return res.status(200).json({ url })
+    // Upload to Cloudinary
+    const uploadStr = `data:image/${filename.split('.').pop()};base64,${base64Data}`;
+    const uploadRes = await cloudinary.uploader.upload(uploadStr, {
+      folder: 'swiggy_uploads',
+      public_id: filename.split('.')[0],
+      overwrite: false,
+    });
+    return res.status(200).json({ url: uploadRes.secure_url });
   } catch (err) {
     console.error('Upload error:', err)
     return res.status(500).json({ error: 'Upload failed' })
