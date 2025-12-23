@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model UserRequest {
+  id           String    @id @default(cuid())
+  name         String
+  phone        String
+  address      String
+  cartImageUrl String
+  notes        String?
+  status       String    @default("WAITING_FOR_PRICE")
+  createdAt    DateTime  @default(now())
+  pricing      Pricing?
+  payment      Payment?
+  tracking     Tracking?
+  remarks      String?   // Admin/user remarks/comments
+}
+
+model Pricing {
+  id            String      @id @default(cuid())
+  request       UserRequest @relation(fields: [requestId], references: [id])
+  requestId     String      @unique
+  foodPrice     Float
+  deliveryFee   Float
+  platformFee   Float
+  serviceCharge Float
+  total         Float
+}
+
+model Payment {
+  id        String      @id @default(cuid())
+  request   UserRequest @relation(fields: [requestId], references: [id])
+  requestId String      @unique
+  utrNumber String
+  paidAt    DateTime    @default(now())
+  verified  Boolean     @default(false)
+}
+
+model Tracking {
+  id          String      @id @default(cuid())
+  request     UserRequest @relation(fields: [requestId], references: [id])
+  requestId   String      @unique
+  trackingUrl String?
+  eta         String?
+  partnerName String?
+}
