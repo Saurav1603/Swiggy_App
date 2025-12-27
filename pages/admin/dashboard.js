@@ -12,19 +12,29 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchStats();
-    // init socket
+    // init socket: first ping /api/socket to initialize server (only needed once), then connect via socket.io-client
     if (!socket && typeof window !== 'undefined') {
-      const s = io('/api/socket')
-      setSocket(s)
-      s.on('connect', () => {
-        if (adminId) s.emit('join_admin', adminId)
-      })
-      s.on('NEW_ORDER', (payload) => {
-        setIncoming(prev => [...prev, payload])
-      })
-      s.on('ORDER_ACCEPTED', ({ orderId, adminId }) => {
-        setIncoming(prev => prev.filter(i => i.orderId !== orderId))
-      })
+      (async () => {
+        try {
+          await fetch('/api/socket') // ensures server-side Socket.IO is initialized
+        } catch (e) {
+          console.warn('Socket init ping failed', e)
+        }
+        const s = io() // connect using default socket.io path (/socket.io)
+        setSocket(s)
+        s.on('connect', () => {
+          if (adminId) s.emit('join_admin', adminId)
+        })
+        s.on('NEW_ORDER', (payload) => {
+          setIncoming(prev => [...prev, payload])
+        })
+        s.on('ORDER_ACCEPTED', ({ orderId, adminId }) => {
+          setIncoming(prev => prev.filter(i => i.orderId !== orderId))
+        })
+        s.on('ORDER_EXPIRED', ({ orderId }) => {
+          setIncoming(prev => prev.filter(i => i.orderId !== orderId))
+        })
+      })()
     }
   }, []);
 
