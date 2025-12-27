@@ -1,12 +1,31 @@
 import Layout from '../../components/Layout';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import io from 'socket.io-client'
+import AdminOrderPopup from '../../components/AdminOrderPopup'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
+  const [socket, setSocket] = useState(null)
+  const [incoming, setIncoming] = useState([])
+  const [adminId] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('adminId') : null)
 
   useEffect(() => {
     fetchStats();
+    // init socket
+    if (!socket && typeof window !== 'undefined') {
+      const s = io('/api/socket')
+      setSocket(s)
+      s.on('connect', () => {
+        if (adminId) s.emit('join_admin', adminId)
+      })
+      s.on('NEW_ORDER', (payload) => {
+        setIncoming(prev => [...prev, payload])
+      })
+      s.on('ORDER_ACCEPTED', ({ orderId, adminId }) => {
+        setIncoming(prev => prev.filter(i => i.orderId !== orderId))
+      })
+    }
   }, []);
 
   const fetchStats = async () => {
@@ -36,6 +55,17 @@ export default function AdminDashboard() {
           <Link href="/admin" className="btn-primary inline-block">Go to Orders</Link>
           <Link href="/admin/settings" className="btn-secondary inline-block">Go to Settings</Link>
         </div>
+        {incoming.map((ord) => (
+          <AdminOrderPopup key={ord.orderId} order={ord} socket={socket} onDecision={async (action, id) => {
+            if (action === 'accept') {
+              await fetch(`/api/orders/${id}/accept`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ adminId }) })
+            } else if (action === 'decline') {
+              await fetch(`/api/orders/${id}/decline`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ adminId }) })
+            } else {
+              await fetch(`/api/orders/${ord.orderId}/decline`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ adminId }) })
+            }
+          }} />
+        ))}
       </div>
     </Layout>
   );

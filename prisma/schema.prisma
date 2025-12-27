@@ -8,10 +8,20 @@ datasource db {
 }
 
 model Admin {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
+  id             String         @id @default(uuid())
+  name           String
+  email          String         @unique
+  password       String?
+  status         AdminStatus    @default(available)
+  createdAt      DateTime       @default(now())
+  assignedOrders Order[]
+  declines       OrderDecline[]
+}
+
+enum AdminStatus {
+  available
+  busy
+  offline
 }
 
 model UserRequest {
@@ -26,8 +36,44 @@ model UserRequest {
   pricing      Pricing?
   payment      Payment?
   tracking     Tracking?
-  remarks      String?   // Admin/user remarks/comments
+  remarks      String? // Admin/user remarks/comments
+  orders       Order[]
 }
+
+model Order {
+  id              String         @id @default(uuid())
+  requestId       String?
+  request         UserRequest?   @relation(fields: [requestId], references: [id])
+  status          OrderStatus    @default(pending)
+  assignedAdminId String?
+  assignedAdmin   Admin?         @relation(fields: [assignedAdminId], references: [id])
+  createdAt       DateTime       @default(now())
+  expiresAt       DateTime?
+  declines        OrderDecline[]
+}
+
+enum OrderStatus {
+  pending
+  broadcasted
+  accepted
+  declined
+  in_progress
+  completed
+  expired
+}
+
+model OrderDecline {
+  id        String   @id @default(uuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  admin     Admin    @relation(fields: [adminId], references: [id])
+  adminId   String
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, adminId])
+}
+
+// ...existing code...
 
 model Pricing {
   id            String      @id @default(cuid())

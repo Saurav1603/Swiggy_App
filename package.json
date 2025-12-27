@@ -9,11 +9,14 @@
     "lint": "next lint",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "test:concurrent-accept": "node scripts/concurrent-accept-test.js"
   },
   "dependencies": {
     "@prisma/client": "^5.7.0",
     "bcryptjs": "^2.4.3",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "cloudinary": "^2.8.0",
     "formidable": "^3.5.4",
     "jsonwebtoken": "^9.0.2",
