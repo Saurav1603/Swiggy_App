@@ -1,5 +1,5 @@
 // Simple Socket.IO bridge for Next.js API route
-import initSocket from '../../../lib/socketInit'
+import initSocket from '../../lib/socketInit'
 
 export default function handler(req, res) {
   try {
