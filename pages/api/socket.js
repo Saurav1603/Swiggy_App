@@ -1,23 +1,15 @@
 // Simple Socket.IO bridge for Next.js API route
-import { Server } from 'socket.io'
+import initSocket from '../../../lib/socketInit'
 
 export default function handler(req, res) {
-  if (!res.socket.server.io) {
-    console.log('Initializing Socket.IO')
-    const io = new Server(res.socket.server)
-    res.socket.server.io = io
-    // attach to global for API routes
-    global.__io = io
-
-    io.on('connection', (socket) => {
-      console.log('Socket connected', socket.id)
-      socket.on('join_admin', (adminId) => {
-        socket.join(`admin_${adminId}`)
-      })
-      socket.on('disconnect', () => {
-        console.log('Socket disconnected', socket.id)
-      })
-    })
+  try {
+    if (!res.socket.server.io) {
+      console.log('Initializing Socket.IO')
+      initSocket(res.socket.server)
+    }
+    res.status(200).json({ ok: true })
+  } catch (err) {
+    console.error('Socket init error', err)
+    res.status(500).json({ ok: false, error: String(err) })
   }
-  res.end()
 }
