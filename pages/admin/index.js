@@ -68,10 +68,12 @@ export default function AdminDashboard() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Login failed');
-  localStorage.setItem('adminToken', json.token);
-  setToken(json.token);
-  toast.success('Welcome back!');
-  router.replace('/admin');
+      localStorage.setItem('adminToken', json.token);
+      localStorage.setItem('adminId', json.adminId);
+      localStorage.setItem('adminName', json.admin?.name || 'Admin');
+      setToken(json.token);
+      toast.success(`Welcome back, ${json.admin?.name || 'Admin'}!`);
+      router.replace('/admin');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -219,6 +221,14 @@ export default function AdminDashboard() {
                   {loading ? 'Signing in...' : 'Sign In →'}
                 </button>
               </form>
+              <div className="mt-4 text-center text-sm">
+                <p className="text-gray-600">
+                  Don't have an account?{' '}
+                  <Link href="/admin/register" className="text-blue-600 hover:text-blue-700 font-semibold">
+                    Register here
+                  </Link>
+                </p>
+              </div>
             </div>
           </div>
         ) : (
