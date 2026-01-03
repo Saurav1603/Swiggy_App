@@ -7,28 +7,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    const io = globalThis.__io || global.__io
+    const io = global.__io || globalThis.__io
+    const connectedAdmins = global.__connectedAdmins ? Array.from(global.__connectedAdmins.entries()) : []
     
     if (!io) {
-      return res.status(500).json({ 
+      return res.status(200).json({ 
+        socketInitialized: false,
         error: 'Socket.IO not initialized',
-        tip: 'Make sure an admin has visited /admin/dashboard to initialize the socket'
+        tip: 'Make sure an admin has visited /admin/dashboard to initialize the socket',
+        connectedAdmins: []
       })
     }
 
-    // Get all available admins
-    const availableAdmins = await prisma.admin.findMany({
-      where: { status: 'available' },
-      select: { id: true, name: true, email: true }
+    // Get all admins from database
+    const allAdmins = await prisma.admin.findMany({
+      select: { id: true, name: true, email: true, status: true }
     })
 
+    // Get available admins
+    const availableAdmins = allAdmins.filter(a => a.status === 'available')
+
     // Get all connected sockets
-    const sockets = await io.fetchSockets()
-    const socketInfo = sockets.map(s => ({
-      id: s.id,
-      adminId: s.adminId,
-      rooms: Array.from(s.rooms)
-    }))
+    let socketInfo = []
+    try {
+      const sockets = await io.fetchSockets()
+      socketInfo = sockets.map(s => ({
+        id: s.id,
+        adminId: s.adminId || 'not set',
+        rooms: Array.from(s.rooms)
+      }))
+    } catch (e) {
+      console.log('fetchSockets error:', e.message)
+    }
 
     // Send a test broadcast
     const testPayload = {
@@ -39,33 +49,46 @@ export default async function handler(req, res) {
         name: 'Test Customer',
         address: '123 Test Street',
         phone: '1234567890',
-        notes: 'This is a test order',
+        notes: 'This is a test order - you should see a popup!',
         createdAt: new Date()
       },
       expiresAt: new Date(Date.now() + 45000)
     }
 
     // Broadcast to all admin rooms
+    let broadcastCount = 0
     availableAdmins.forEach(admin => {
       io.to(`admin_${admin.id}`).emit('NEW_ORDER', testPayload)
+      broadcastCount++
     })
 
     // Also direct emit to all sockets with adminId
-    sockets.forEach(socket => {
-      if (socket.adminId) {
-        socket.emit('NEW_ORDER', testPayload)
+    socketInfo.forEach(socket => {
+      if (socket.adminId && socket.adminId !== 'not set') {
+        // Direct emit via io
+        io.to(socket.id).emit('NEW_ORDER', testPayload)
       }
     })
 
     return res.status(200).json({
+      socketInitialized: true,
       success: true,
-      message: 'Test broadcast sent',
-      availableAdmins,
+      message: `Test broadcast sent to ${broadcastCount} admin rooms`,
+      allAdmins: allAdmins.map(a => ({ id: a.id, name: a.name, status: a.status })),
+      availableAdmins: availableAdmins.map(a => ({ id: a.id, name: a.name })),
+      connectedAdminsMap: connectedAdmins,
       connectedSockets: socketInfo,
-      testPayload
+      testPayload,
+      debugTips: [
+        'Admin must be logged in and on /admin/dashboard page',
+        'Admin status must be "available" in database',
+        'Check browser console for "Socket connected" and "New order received" logs',
+        'Check browser console for any errors'
+      ]
     })
   } catch (err) {
     console.error('Test broadcast error:', err)
-    return res.status(500).json({ error: err.message })
+    return res.status(500).json({ error: err.message, stack: err.stack })
   }
+}
 }

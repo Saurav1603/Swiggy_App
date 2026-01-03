@@ -37,7 +37,8 @@ export default function AdminDashboard() {
     const initSocket = async () => {
       try {
         // Ping to ensure server-side Socket.IO is initialized
-        await fetch('/api/socket')
+        const initRes = await fetch('/api/socket')
+        console.log('Socket init response:', initRes.ok)
       } catch (e) {
         console.warn('Socket init ping failed', e)
       }
@@ -45,28 +46,37 @@ export default function AdminDashboard() {
       const s = io({
         transports: ['websocket', 'polling'],
         timeout: 10000,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
       })
       
       setSocket(s)
 
       s.on('connect', () => {
-        console.log('Socket connected:', s.id)
+        console.log('✅ Socket connected:', s.id)
+        console.log('📡 Joining admin room for:', adminId)
         setIsConnected(true)
-        // Join admin room
+        // Join admin room with the adminId
         s.emit('join_admin', adminId)
         toast.success('Connected to order notifications', { duration: 2000 })
       })
 
-      s.on('disconnect', () => {
-        console.log('Socket disconnected')
+      s.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', reason)
         setIsConnected(false)
       })
 
+      s.on('connect_error', (error) => {
+        console.log('⚠️ Socket connection error:', error.message)
+      })
+
       s.on('NEW_ORDER', (payload) => {
-        console.log('New order received:', payload)
+        console.log('🔔 NEW ORDER RECEIVED:', payload)
         // Add to incoming orders if not already present
         setIncoming(prev => {
           if (prev.find(o => o.orderId === payload.orderId)) return prev
+          console.log('Adding new order to incoming list')
           return [...prev, payload]
         })
         // Play sound
