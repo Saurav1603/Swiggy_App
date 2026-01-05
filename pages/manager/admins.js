@@ -1,94 +1,99 @@
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
-import Link from 'next/link'
-import Layout from '../../components/Layout'
-import toast from 'react-hot-toast'
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
+import ManagerLayout from '../../components/ManagerLayout';
+import toast from 'react-hot-toast';
 
-const ADMIN_STATUS_COLORS = {
-  available: 'bg-green-100 text-green-700 border-green-200',
-  busy: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  offline: 'bg-gray-100 text-gray-700 border-gray-200'
-}
+const ADMIN_STATUS_CONFIG = {
+  available: { color: 'bg-green-500', bgLight: 'bg-green-500/20', text: 'text-green-400', label: 'Available' },
+  busy: { color: 'bg-yellow-500', bgLight: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Busy' },
+  offline: { color: 'bg-gray-500', bgLight: 'bg-gray-500/20', text: 'text-gray-400', label: 'Offline' }
+};
 
 export default function ManageAdmins() {
-  const router = useRouter()
-  const [admins, setAdmins] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [selectedAdmin, setSelectedAdmin] = useState(null)
-  const [editMode, setEditMode] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editStatus, setEditStatus] = useState('')
+  const router = useRouter();
+  const [admins, setAdmins] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('managerToken')
+      const token = localStorage.getItem('managerToken');
       if (!token) {
-        router.replace('/manager')
-        return
+        router.replace('/manager');
+        return;
       }
     }
-    fetchAdmins()
-  }, [])
+    fetchAdmins();
+  }, []);
 
   const fetchAdmins = async () => {
     try {
-      const res = await fetch('/api/manager/admins')
+      const res = await fetch('/api/manager/admins');
       if (res.ok) {
-        setAdmins(await res.json())
+        setAdmins(await res.json());
       }
     } catch (err) {
-      console.error('Fetch admins error:', err)
-      toast.error('Failed to load admins')
+      console.error('Fetch admins error:', err);
+      toast.error('Failed to load admins');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleSelectAdmin = async (admin) => {
-    setSelectedAdmin(admin)
-    setEditName(admin.name)
-    setEditStatus(admin.status)
-    setEditMode(false)
-  }
+  const filteredAdmins = admins.filter(admin => {
+    if (filter === 'all') return true;
+    return admin.status === filter;
+  });
+
+  const handleSelectAdmin = (admin) => {
+    setSelectedAdmin(admin);
+    setEditName(admin.name);
+    setEditStatus(admin.status);
+    setEditMode(false);
+  };
 
   const handleUpdateAdmin = async () => {
-    if (!selectedAdmin) return
+    if (!selectedAdmin) return;
     try {
       const res = await fetch(`/api/manager/admins/${selectedAdmin.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editName, status: editStatus })
-      })
+      });
       if (res.ok) {
-        toast.success('Admin updated!')
-        fetchAdmins()
-        setEditMode(false)
-        // Update selected admin
-        setSelectedAdmin({ ...selectedAdmin, name: editName, status: editStatus })
+        toast.success('Admin updated!');
+        fetchAdmins();
+        setEditMode(false);
+        setSelectedAdmin({ ...selectedAdmin, name: editName, status: editStatus });
       } else {
-        const data = await res.json()
-        toast.error(data.error || 'Update failed')
+        const data = await res.json();
+        toast.error(data.error || 'Update failed');
       }
     } catch (err) {
-      toast.error('Network error')
+      toast.error('Network error');
     }
-  }
+  };
 
   const handleDeleteAdmin = async (id) => {
-    if (!confirm('Are you sure you want to delete this admin? This action cannot be undone.')) return
+    if (!confirm('Are you sure you want to delete this admin? This action cannot be undone.')) return;
     try {
-      const res = await fetch(`/api/manager/admins/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/manager/admins/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success('Admin deleted')
-        fetchAdmins()
-        if (selectedAdmin?.id === id) setSelectedAdmin(null)
+        toast.success('Admin deleted');
+        fetchAdmins();
+        if (selectedAdmin?.id === id) setSelectedAdmin(null);
       } else {
-        toast.error('Delete failed')
+        toast.error('Delete failed');
       }
     } catch (err) {
-      toast.error('Network error')
+      toast.error('Network error');
     }
-  }
+  };
 
   const handleSetStatus = async (id, status) => {
     try {
@@ -96,198 +101,228 @@ export default function ManageAdmins() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
-      })
+      });
       if (res.ok) {
-        toast.success(`Status set to ${status}`)
-        fetchAdmins()
+        toast.success(`Status set to ${status}`);
+        fetchAdmins();
         if (selectedAdmin?.id === id) {
-          setSelectedAdmin({ ...selectedAdmin, status })
-          setEditStatus(status)
+          setSelectedAdmin({ ...selectedAdmin, status });
+          setEditStatus(status);
         }
       }
     } catch (err) {
-      toast.error('Failed to update status')
+      toast.error('Failed to update status');
     }
-  }
+  };
+
+  const statusCounts = {
+    all: admins.length,
+    available: admins.filter(a => a.status === 'available').length,
+    busy: admins.filter(a => a.status === 'busy').length,
+    offline: admins.filter(a => a.status === 'offline').length,
+  };
 
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto animate-fadeIn">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">👥 Manage Admins</h1>
-            <p className="text-gray-500">View and control all admin accounts</p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/manager" className="btn-secondary">← Dashboard</Link>
-            <Link href="/admin/register" className="btn-primary" target="_blank">+ Add Admin</Link>
-          </div>
-        </div>
+    <ManagerLayout title="Manage Admins" subtitle={`${admins.length} registered admins`}>
+      {/* Stats Row */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        {[
+          { key: 'all', label: 'All', icon: '👥', color: 'bg-white/10' },
+          { key: 'available', label: 'Available', icon: '🟢', color: 'bg-green-500/20' },
+          { key: 'busy', label: 'Busy', icon: '🟡', color: 'bg-yellow-500/20' },
+          { key: 'offline', label: 'Offline', icon: '⚫', color: 'bg-gray-500/20' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setFilter(item.key)}
+            className={`p-4 rounded-xl border transition-all ${
+              filter === item.key 
+                ? 'border-orange-500 bg-orange-500/20' 
+                : 'border-white/10 hover:border-white/20 ' + item.color
+            }`}
+          >
+            <div className="text-2xl mb-1">{item.icon}</div>
+            <div className="text-2xl font-bold text-white">{statusCounts[item.key]}</div>
+            <div className="text-xs text-white/60">{item.label}</div>
+          </button>
+        ))}
+      </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Admin List */}
-          <div className="md:col-span-2">
-            <div className="card p-5">
-              <h2 className="font-semibold text-lg mb-4">All Admins ({admins.length})</h2>
-              
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-                </div>
-              ) : admins.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No admins registered yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {admins.map(admin => (
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Admin List */}
+        <div className="lg:col-span-2">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <h2 className="font-bold text-white text-lg">Admin List</h2>
+              <Link 
+                href="/admin/register" 
+                target="_blank"
+                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 text-white text-sm font-medium rounded-lg hover:shadow-lg hover:shadow-orange-500/25 transition-all"
+              >
+                + Add Admin
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="p-12 text-center">
+                <div className="animate-spin text-4xl mb-4">⏳</div>
+                <p className="text-white/60">Loading admins...</p>
+              </div>
+            ) : filteredAdmins.length === 0 ? (
+              <div className="p-12 text-center">
+                <span className="text-5xl mb-4 block">👤</span>
+                <p className="text-white/60">No admins found</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-white/10">
+                {filteredAdmins.map((admin) => {
+                  const statusConfig = ADMIN_STATUS_CONFIG[admin.status] || ADMIN_STATUS_CONFIG.offline;
+                  return (
                     <div
                       key={admin.id}
                       onClick={() => handleSelectAdmin(admin)}
-                      className={`flex items-center justify-between p-4 rounded-lg cursor-pointer transition-all
-                        ${selectedAdmin?.id === admin.id ? 'bg-orange-50 border-2 border-orange-300' : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'}`}
+                      className={`p-5 cursor-pointer transition-all hover:bg-white/5 ${
+                        selectedAdmin?.id === admin.id ? 'bg-orange-500/10 border-l-4 border-orange-500' : ''
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-lg">
-                          {admin.name?.charAt(0).toUpperCase() || '?'}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="relative">
+                            <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                              {admin.name?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                            <span className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-900 ${statusConfig.color}`}></span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-white text-lg">{admin.name}</div>
+                            <div className="text-sm text-white/50">{admin.email}</div>
+                            <div className="text-xs text-white/40 mt-1">
+                              Joined {new Date(admin.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-medium">{admin.name}</div>
-                          <div className="text-sm text-gray-500">{admin.email}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`px-3 py-1 text-sm rounded-full border ${ADMIN_STATUS_COLORS[admin.status]}`}>
-                          {admin.status}
-                        </span>
-                        <div className="text-xs text-gray-500 mt-2">
-                          {admin.stats.completedOrders} completed • {admin.stats.activeOrders} active
+                        <div className="text-right">
+                          <span className={`px-3 py-1 text-sm rounded-full ${statusConfig.bgLight} ${statusConfig.text}`}>
+                            {statusConfig.label}
+                          </span>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+        </div>
 
-          {/* Admin Details Panel */}
-          <div className="md:col-span-1">
-            <div className="card p-5 sticky top-4">
-              {selectedAdmin ? (
-                <>
-                  <div className="flex justify-between items-start mb-4">
-                    <h2 className="font-semibold text-lg">Admin Details</h2>
-                    <button
-                      onClick={() => setEditMode(!editMode)}
-                      className="text-sm text-orange-600 hover:underline"
-                    >
-                      {editMode ? 'Cancel' : 'Edit'}
-                    </button>
-                  </div>
-
-                  {editMode ? (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="input-field"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select
-                          value={editStatus}
-                          onChange={(e) => setEditStatus(e.target.value)}
-                          className="input-field"
-                        >
-                          <option value="available">Available</option>
-                          <option value="busy">Busy</option>
-                          <option value="offline">Offline</option>
-                        </select>
-                      </div>
-                      <button onClick={handleUpdateAdmin} className="w-full btn-primary">
-                        Save Changes
-                      </button>
+        {/* Admin Details Panel */}
+        <div className="lg:col-span-1">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/10 sticky top-24">
+            {selectedAdmin ? (
+              <>
+                {/* Header */}
+                <div className="p-6 border-b border-white/10 text-center">
+                  <div className="relative inline-block mb-4">
+                    <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-4xl mx-auto">
+                      {selectedAdmin.name?.charAt(0).toUpperCase() || '?'}
                     </div>
+                    <span className={`absolute bottom-2 right-2 w-5 h-5 rounded-full border-2 border-slate-900 ${ADMIN_STATUS_CONFIG[selectedAdmin.status]?.color}`}></span>
+                  </div>
+                  
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-center font-bold"
+                    />
+                  ) : (
+                    <h3 className="text-xl font-bold text-white">{selectedAdmin.name}</h3>
+                  )}
+                  <p className="text-white/60 text-sm mt-1">{selectedAdmin.email}</p>
+                </div>
+
+                {/* Status Control */}
+                <div className="p-6 border-b border-white/10">
+                  <label className="text-sm font-medium text-white/60 mb-3 block">Status</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['available', 'busy', 'offline'].map((status) => {
+                      const config = ADMIN_STATUS_CONFIG[status];
+                      const isActive = editMode ? editStatus === status : selectedAdmin.status === status;
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => editMode ? setEditStatus(status) : handleSetStatus(selectedAdmin.id, status)}
+                          className={`p-3 rounded-lg text-center transition-all ${
+                            isActive 
+                              ? `${config.bgLight} border-2 border-current ${config.text}` 
+                              : 'bg-white/5 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className={`w-2 h-2 rounded-full ${config.color} mx-auto mb-1`}></div>
+                          <div className="text-xs font-medium">{config.label}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Info */}
+                <div className="p-6 border-b border-white/10 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-white/60">ID</span>
+                    <span className="text-white font-mono text-xs">{selectedAdmin.id.slice(0, 8)}...</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/60">Joined</span>
+                    <span className="text-white">{new Date(selectedAdmin.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="p-6 space-y-3">
+                  {editMode ? (
+                    <>
+                      <button
+                        onClick={handleUpdateAdmin}
+                        className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-xl hover:shadow-lg transition-all"
+                      >
+                        ✓ Save Changes
+                      </button>
+                      <button
+                        onClick={() => setEditMode(false)}
+                        className="w-full py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </>
                   ) : (
                     <>
-                      <div className="text-center mb-4">
-                        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-2xl mx-auto mb-2">
-                          {selectedAdmin.name?.charAt(0).toUpperCase() || '?'}
-                        </div>
-                        <div className="font-medium text-lg">{selectedAdmin.name}</div>
-                        <div className="text-gray-500 text-sm">{selectedAdmin.email}</div>
-                        <span className={`inline-block mt-2 px-3 py-1 text-sm rounded-full border ${ADMIN_STATUS_COLORS[selectedAdmin.status]}`}>
-                          {selectedAdmin.status}
-                        </span>
-                      </div>
-
-                      {/* Quick Status Buttons */}
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Quick Status</label>
-                        <div className="flex gap-2">
-                          {['available', 'busy', 'offline'].map(status => (
-                            <button
-                              key={status}
-                              onClick={() => handleSetStatus(selectedAdmin.id, status)}
-                              className={`flex-1 px-2 py-1 text-xs rounded-full border transition-all
-                                ${selectedAdmin.status === status 
-                                  ? ADMIN_STATUS_COLORS[status] + ' ring-2 ring-offset-1' 
-                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
-                            >
-                              {status}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xl font-bold text-green-600">{selectedAdmin.stats.completedOrders}</div>
-                          <div className="text-xs text-gray-500">Completed</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xl font-bold text-orange-600">{selectedAdmin.stats.activeOrders}</div>
-                          <div className="text-xs text-gray-500">Active</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xl font-bold text-blue-600">{selectedAdmin.stats.totalOrders}</div>
-                          <div className="text-xs text-gray-500">Total</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xl font-bold text-red-600">{selectedAdmin.stats.declineCount}</div>
-                          <div className="text-xs text-gray-500">Declined</div>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-gray-500 mb-4">
-                        Joined: {new Date(selectedAdmin.createdAt).toLocaleDateString()}
-                      </div>
-
-                      {/* Delete Button */}
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className="w-full py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all"
+                      >
+                        ✏️ Edit Admin
+                      </button>
                       <button
                         onClick={() => handleDeleteAdmin(selectedAdmin.id)}
-                        className="w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                        className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition-all"
                       >
                         🗑️ Delete Admin
                       </button>
                     </>
                   )}
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <span className="text-4xl block mb-2">👆</span>
-                  Select an admin to view details
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <div className="p-12 text-center">
+                <span className="text-5xl mb-4 block">👈</span>
+                <p className="text-white/60">Select an admin to view details</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </Layout>
-  )
+    </ManagerLayout>
+  );
 }
