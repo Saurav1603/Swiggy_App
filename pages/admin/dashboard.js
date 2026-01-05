@@ -35,14 +35,9 @@ export default function AdminDashboard() {
     
     // Initialize Socket.IO connection
     const initSocket = async () => {
-      try {
-        // Ping to ensure server-side Socket.IO is initialized
-        const initRes = await fetch('/api/socket')
-        console.log('Socket init response:', initRes.ok)
-      } catch (e) {
-        console.warn('Socket init ping failed', e)
-      }
-
+      // Socket.IO is now initialized on server startup via server.js
+      // No need to ping /api/socket first
+      
       const s = io({
         transports: ['websocket', 'polling'],
         timeout: 10000,

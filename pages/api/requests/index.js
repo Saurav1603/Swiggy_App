@@ -1,6 +1,5 @@
 import prisma from '../../../lib/prisma'
 import { withRateLimit } from '../../../lib/rateLimit'
-import { broadcastToAdmins } from '../../../lib/socketInit'
 
 async function handler(req, res) {
   if (req.method === 'POST') {
@@ -22,6 +21,9 @@ async function handler(req, res) {
     })
 
     // Create an order and broadcast to all available admins
+    let orderCreated = false
+    let broadcastSuccess = false
+    
     try {
       const order = await prisma.order.create({
         data: { 
@@ -30,6 +32,7 @@ async function handler(req, res) {
           expiresAt: new Date(Date.now() + 60 * 1000) // 60 second timeout
         },
       })
+      orderCreated = true
 
       // Get all available admins
       const availableAdmins = await prisma.admin.findMany({ 
@@ -37,7 +40,8 @@ async function handler(req, res) {
         select: { id: true, name: true }
       })
       
-      console.log('Available admins for broadcast:', availableAdmins.map(a => ({ id: a.id, name: a.name })))
+      console.log('📋 New order created:', order.id)
+      console.log('👥 Available admins:', availableAdmins.length, availableAdmins.map(a => a.name))
       
       const payload = {
         orderId: order.id,
@@ -54,44 +58,53 @@ async function handler(req, res) {
         expiresAt: order.expiresAt
       }
 
-      // Broadcast via Socket.IO
-      const io = global.__io || globalThis.__io
-      console.log('Socket.IO available:', !!io)
-      console.log('Connected admins:', global.__connectedAdmins ? Array.from(global.__connectedAdmins.keys()) : 'none')
+      // Get Socket.IO instance - check multiple sources
+      const io = res.socket?.server?.io || global.__io || globalThis.__io
+      
+      console.log('🔌 Socket.IO check:')
+      console.log('   - res.socket.server.io:', !!res.socket?.server?.io)
+      console.log('   - global.__io:', !!global.__io)
+      console.log('   - globalThis.__io:', !!globalThis.__io)
       
       if (io) {
-        // Method 1: Emit to each available admin's room
+        // Emit to each available admin's room
+        let emitCount = 0
         availableAdmins.forEach(admin => {
-          console.log(`Emitting NEW_ORDER to room admin_${admin.id}`)
+          console.log(`📤 Emitting NEW_ORDER to room admin_${admin.id}`)
           io.to(`admin_${admin.id}`).emit('NEW_ORDER', payload)
+          emitCount++
         })
 
-        // Method 2: Also try direct emit to all connected sockets
+        // Also broadcast to ALL connected sockets (fallback)
+        io.emit('NEW_ORDER', payload)
+        console.log('📤 Also broadcast to all connected sockets')
+
+        // Try direct emit to connected sockets
         try {
           const sockets = await io.fetchSockets()
-          console.log('Connected sockets:', sockets.length)
+          console.log(`🔗 Connected sockets: ${sockets.length}`)
           sockets.forEach(socket => {
-            const isAvailable = availableAdmins.find(a => a.id === socket.adminId)
-            if (socket.adminId && isAvailable) {
-              console.log(`Direct emit to socket ${socket.id} (admin ${socket.adminId})`)
-              socket.emit('NEW_ORDER', payload)
-            }
+            console.log(`   Socket ${socket.id}: adminId=${socket.adminId || 'none'}, rooms=${Array.from(socket.rooms).join(',')}`)
           })
         } catch (e) {
           console.log('fetchSockets error:', e.message)
         }
 
-        console.log(`Order ${order.id} broadcast attempted to ${availableAdmins.length} admins`)
+        broadcastSuccess = true
+        console.log(`✅ Order ${order.id} broadcast to ${emitCount} admin rooms`)
       } else {
-        console.log('Socket.IO not initialized - order created but not broadcasted')
-        console.log('Admins need to visit /admin/dashboard to initialize socket')
+        console.log('⚠️ Socket.IO not initialized')
+        console.log('   Admins need to be on /admin/dashboard to receive notifications')
       }
     } catch (err) {
-      console.error('Error creating order broadcast:', err)
-      // Don't fail the request creation if broadcasting fails
+      console.error('❌ Error creating order/broadcast:', err)
     }
 
-    return res.status(201).json({ id: created.id })
+    return res.status(201).json({ 
+      id: created.id,
+      orderCreated,
+      broadcastSuccess
+    })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })
