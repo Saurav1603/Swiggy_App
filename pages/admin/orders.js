@@ -1,242 +1,287 @@
-import { useEffect, useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
-import Layout from '../../components/Layout';
-import toast from 'react-hot-toast';
-
-const STATUS_CONFIG = {
-  WAITING_FOR_PRICE: { label: 'New', color: 'bg-blue-100 text-blue-700', icon: '⏳', description: 'Set price for customer' },
-  PRICE_SENT: { label: 'Awaiting Payment', color: 'bg-yellow-100 text-yellow-700', icon: '💰', description: 'Waiting for customer payment' },
-  PAYMENT_PENDING: { label: 'Payment Pending', color: 'bg-orange-100 text-orange-700', icon: '📱', description: 'Verifying payment' },
-  PAYMENT_RECEIVED: { label: 'Paid', color: 'bg-green-100 text-green-700', icon: '✅', description: 'Place order on Swiggy' },
-  ORDER_PLACED: { label: 'Ordered', color: 'bg-purple-100 text-purple-700', icon: '🍔', description: 'Waiting for delivery' },
-  DELIVERED: { label: 'Delivered', color: 'bg-gray-100 text-gray-700', icon: '🎉', description: 'Completed' }
-};
-
-const FILTERS = [
-  { label: 'All', value: '', icon: '📋' },
-  { label: 'New', value: 'WAITING_FOR_PRICE', icon: '⏳' },
-  { label: 'Awaiting Payment', value: 'PRICE_SENT', icon: '💰' },
-  { label: 'Paid', value: 'PAYMENT_RECEIVED', icon: '✅' },
-  { label: 'Ordered', value: 'ORDER_PLACED', icon: '🍔' },
-  { label: 'Delivered', value: 'DELIVERED', icon: '🎉' }
-];
+import AdminLayout from '../../components/AdminLayout';
 
 export default function AdminOrders() {
   const router = useRouter();
-  const [requests, setRequests] = useState([]);
-  const [filter, setFilter] = useState('');
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [token, setToken] = useState(null);
-  const seenOrderIdsRef = useRef(new Set());
-  const isFirstLoadRef = useRef(true);
+  const [filter, setFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Check authentication
   useEffect(() => {
-    const storedToken = localStorage.getItem('adminToken');
-    const adminId = localStorage.getItem('adminId');
-    
-    if (!storedToken || !adminId) {
-      router.replace('/admin/login');
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      router.push('/admin/login');
       return;
     }
-    
-    setToken(storedToken);
-    setCheckingAuth(false);
-  }, [router]);
+    fetchOrders();
+  }, []);
 
-  // Fetch orders when authenticated
-  useEffect(() => {
-    if (token) {
-      fetchRequests();
-    }
-  }, [token, filter]);
-
-  // Auto-refresh orders
-  useEffect(() => {
-    if (!token) return;
-    const interval = setInterval(() => {
-      fetchRequests(false);
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [filter, token]);
-
-  const fetchRequests = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    
+  const fetchOrders = async () => {
     try {
-      const url = filter ? `/api/admin/requests?status=${filter}` : '/api/admin/requests';
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('/api/admin/orders', {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      
-      if (res.status === 401) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminId');
-        router.replace('/admin/login');
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data);
       }
-      
-      const newRequests = await res.json();
-      
-      // Show notification for new orders (not on first load)
-      if (!isFirstLoadRef.current && Array.isArray(newRequests)) {
-        const unseenOrders = newRequests.filter(r => !seenOrderIdsRef.current.has(r.id));
-        if (unseenOrders.length > 0) {
-          toast.success(`🆕 ${unseenOrders.length} new order${unseenOrders.length > 1 ? 's' : ''}!`);
-        }
-      }
-      
-      if (Array.isArray(newRequests)) {
-        seenOrderIdsRef.current = new Set(newRequests.map(r => r.id));
-        setRequests(newRequests);
-      }
-      
-      isFirstLoadRef.current = false;
-    } catch (err) {
-      console.error('Failed to fetch orders:', err);
-      toast.error('Failed to load orders');
+    } catch (error) {
+      console.error('Error fetching orders:', error);
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
     }
   };
 
-  const formatDate = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.toLocaleString('en-IN', {
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      accepted: 'bg-blue-100 text-blue-800 border-blue-200',
+      preparing: 'bg-purple-100 text-purple-800 border-purple-200',
+      picked_up: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      delivered: 'bg-green-100 text-green-800 border-green-200',
+      completed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      cancelled: 'bg-red-100 text-red-800 border-red-200'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const getStatusIcon = (status) => {
+    const icons = {
+      pending: '⏳',
+      accepted: '✅',
+      preparing: '👨‍🍳',
+      picked_up: '🛵',
+      delivered: '📦',
+      completed: '🎉',
+      cancelled: '❌'
+    };
+    return icons[status] || '📋';
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
-  if (checkingAuth) {
+  const filteredOrders = orders.filter(order => {
+    const matchesFilter = filter === 'all' || order.status === filter;
+    const matchesSearch = order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.id?.toString().includes(searchTerm) ||
+                         order.restaurantName?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
+
+  const statusCounts = {
+    all: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    accepted: orders.filter(o => o.status === 'accepted').length,
+    preparing: orders.filter(o => o.status === 'preparing').length,
+    picked_up: orders.filter(o => o.status === 'picked_up').length,
+    delivered: orders.filter(o => o.status === 'delivered').length,
+    completed: orders.filter(o => o.status === 'completed').length,
+    cancelled: orders.filter(o => o.status === 'cancelled').length
+  };
+
+  const filterButtons = [
+    { key: 'all', label: 'All Orders', icon: '📋' },
+    { key: 'pending', label: 'Pending', icon: '⏳' },
+    { key: 'accepted', label: 'Accepted', icon: '✅' },
+    { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
+    { key: 'picked_up', label: 'Picked Up', icon: '🛵' },
+    { key: 'delivered', label: 'Delivered', icon: '📦' },
+    { key: 'completed', label: 'Completed', icon: '🎉' },
+    { key: 'cancelled', label: 'Cancelled', icon: '❌' }
+  ];
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-white">
-        <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-gray-500">Loading...</p>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading orders...</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <Layout>
-      <div className="max-w-5xl mx-auto animate-fadeIn">
+    <AdminLayout>
+      <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Orders 📋</h1>
-            <div className="flex items-center gap-3 mt-1">
-              <p className="text-gray-500">{requests.length} order{requests.length !== 1 ? 's' : ''}</p>
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Auto-refresh on
-              </span>
-            </div>
+            <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
+            <p className="text-gray-600">Manage and track your assigned orders</p>
           </div>
-          <div className="flex gap-2">
-            <Link href="/admin/dashboard" className="btn-secondary text-sm">
-              ← Dashboard
-            </Link>
-          </div>
+          <button
+            onClick={fetchOrders}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-md"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-4 px-4 scrollbar-hide">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                filter === f.value 
-                  ? 'bg-orange-500 text-white shadow-lg transform scale-105' 
-                  : 'bg-white text-gray-600 hover:bg-gray-50 shadow'
-              }`}
-            >
-              <span>{f.icon}</span>
-              {f.label}
-            </button>
-          ))}
+        {/* Search and Filters */}
+        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-4 space-y-4">
+          {/* Search Bar */}
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search by customer name, order ID, or restaurant..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+            />
+          </div>
+
+          {/* Filter Buttons */}
+          <div className="flex flex-wrap gap-2">
+            {filterButtons.map(btn => (
+              <button
+                key={btn.key}
+                onClick={() => setFilter(btn.key)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  filter === btn.key
+                    ? 'bg-orange-500 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <span>{btn.icon}</span>
+                <span>{btn.label}</span>
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
+                  filter === btn.key ? 'bg-orange-600' : 'bg-gray-200'
+                }`}>
+                  {statusCounts[btn.key]}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Orders List */}
-        {loading ? (
-          <div className="text-center py-16">
-            <div className="animate-spin text-5xl mb-4">⏳</div>
-            <p className="text-gray-500">Loading orders...</p>
-          </div>
-        ) : requests.length === 0 ? (
-          <div className="card p-16 text-center">
-            <span className="text-6xl mb-4 block">📭</span>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">No Orders Found</h2>
-            <p className="text-gray-500 mb-4">
-              {filter ? 'No orders match this filter.' : 'Accept orders from your dashboard to see them here.'}
+        {filteredOrders.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-md border border-gray-100 p-12 text-center">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">📭</span>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders found</h3>
+            <p className="text-gray-600">
+              {searchTerm || filter !== 'all' 
+                ? 'Try adjusting your search or filters'
+                : 'You haven\'t received any orders yet'}
             </p>
-            <Link href="/admin/dashboard" className="btn-primary inline-block">
-              Go to Dashboard
-            </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {requests.map((r, i) => {
-              const statusConfig = STATUS_CONFIG[r.status] || {};
-              return (
-                <Link 
-                  key={r.id} 
-                  href={`/admin/requests/${r.id}`}
-                  className="card p-5 flex items-center gap-4 hover:shadow-xl hover:scale-[1.01] transition-all animate-slideUp block"
-                  style={{ animationDelay: `${i * 0.05}s` }}
-                >
-                  {/* Status Icon */}
-                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${statusConfig.color}`}>
-                    {statusConfig.icon}
+          <div className="grid gap-4">
+            {filteredOrders.map(order => (
+              <div
+                key={order.id}
+                onClick={() => router.push(`/admin/requests/${order.id}`)}
+                className="bg-white rounded-xl shadow-md border border-gray-100 p-5 hover:shadow-lg hover:border-orange-200 transition-all cursor-pointer group"
+              >
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {/* Order Image */}
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                    {order.screenshotUrl ? (
+                      <img 
+                        src={order.screenshotUrl} 
+                        alt="Order" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl">
+                        🍽️
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Details */}
+
+                  {/* Order Details */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-bold text-gray-900 truncate">{r.name}</p>
-                      {r.pricing?.total && (
-                        <span className="text-green-600 font-bold">₹{r.pricing.total}</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500 truncate mb-2">{r.address}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${statusConfig.color}`}>
-                        {statusConfig.label}
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                          Order #{order.id}
+                        </h3>
+                        <p className="text-sm text-gray-600">{order.customerName}</p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
+                        {getStatusIcon(order.status)} {order.status?.replace('_', ' ').toUpperCase()}
                       </span>
-                      <span className="text-xs text-gray-400">{formatDate(r.createdAt)}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-500">Restaurant</span>
+                        <p className="font-medium text-gray-900 truncate">{order.restaurantName || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Amount</span>
+                        <p className="font-medium text-orange-600">₹{order.totalAmount || order.estimatedTotal || 0}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Items</span>
+                        <p className="font-medium text-gray-900">{order.items?.length || 0} items</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Date</span>
+                        <p className="font-medium text-gray-900">{formatDate(order.createdAt)}</p>
+                      </div>
                     </div>
                   </div>
-                  
+
                   {/* Arrow */}
-                  <div className="text-gray-300 text-xl">→</div>
-                </Link>
-              );
-            })}
+                  <div className="hidden md:flex items-center">
+                    <svg className="w-6 h-6 text-gray-400 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Stats Summary */}
-        {requests.length > 0 && (
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Object.entries(STATUS_CONFIG).map(([key, config]) => {
-              const count = requests.filter(r => r.status === key).length;
-              if (count === 0) return null;
-              return (
-                <div key={key} className={`card p-4 text-center ${config.color}`}>
-                  <div className="text-2xl font-bold">{count}</div>
-                  <div className="text-sm">{config.label}</div>
-                </div>
-              );
-            })}
+        {/* Summary Stats */}
+        {orders.length > 0 && (
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+            <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm">
+                <p className="text-white/80 text-sm">Total Orders</p>
+                <p className="text-2xl font-bold">{orders.length}</p>
+              </div>
+              <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm">
+                <p className="text-white/80 text-sm">Completed</p>
+                <p className="text-2xl font-bold">{statusCounts.completed + statusCounts.delivered}</p>
+              </div>
+              <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm">
+                <p className="text-white/80 text-sm">In Progress</p>
+                <p className="text-2xl font-bold">{statusCounts.accepted + statusCounts.preparing + statusCounts.picked_up}</p>
+              </div>
+              <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm">
+                <p className="text-white/80 text-sm">Total Revenue</p>
+                <p className="text-2xl font-bold">₹{orders.reduce((sum, o) => sum + (o.totalAmount || o.estimatedTotal || 0), 0)}</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
-    </Layout>
+    </AdminLayout>
   );
 }

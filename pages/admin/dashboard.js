@@ -1,4 +1,4 @@
-import Layout from '../../components/Layout';
+import AdminLayout from '../../components/AdminLayout';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -41,7 +41,6 @@ export default function AdminDashboard() {
 
     fetchStats();
 
-    // Initialize Socket.IO connection
     const s = io({
       transports: ['websocket', 'polling'],
       timeout: 10000,
@@ -53,47 +52,33 @@ export default function AdminDashboard() {
     setSocket(s);
 
     s.on('connect', () => {
-      console.log('✅ Socket connected:', s.id);
       setIsConnected(true);
       s.emit('join_admin', adminId);
       toast.success('Connected to notifications', { duration: 2000 });
     });
 
-    s.on('disconnect', (reason) => {
-      console.log('❌ Socket disconnected:', reason);
-      setIsConnected(false);
-    });
-
-    s.on('connect_error', (error) => {
-      console.log('⚠️ Socket connection error:', error.message);
-    });
+    s.on('disconnect', () => setIsConnected(false));
 
     s.on('NEW_ORDER', (payload) => {
-      console.log('🔔 NEW ORDER RECEIVED:', payload);
       setIncoming(prev => {
         if (prev.find(o => o.orderId === payload.orderId)) return prev;
         return [...prev, payload];
       });
-      try {
-        new Audio('/notification.mp3').play().catch(() => {});
-      } catch (e) {}
+      try { new Audio('/notification.mp3').play().catch(() => {}); } catch (e) {}
     });
 
     s.on('ORDER_ACCEPTED', ({ orderId, adminId: acceptedBy }) => {
-      console.log('Order accepted:', orderId, 'by:', acceptedBy);
       setIncoming(prev => prev.filter(o => o.orderId !== orderId));
       if (acceptedBy === adminId) {
-        toast.success('🎉 Order accepted! Go to My Orders to manage it.');
+        toast.success('🎉 Order accepted!');
         fetchStats();
       }
     });
 
     s.on('ORDER_EXPIRED', ({ orderId }) => {
-      console.log('Order expired:', orderId);
       setIncoming(prev => prev.filter(o => o.orderId !== orderId));
     });
 
-    // Refresh stats periodically
     const statsInterval = setInterval(fetchStats, 30000);
 
     return () => {
@@ -145,14 +130,11 @@ export default function AdminDashboard() {
           body: JSON.stringify({ adminId })
         });
         setIncoming(prev => prev.filter(o => o.orderId !== orderId));
-        if (action === 'timeout') {
-          toast('⏰ Order timed out', { icon: '⏰' });
-        }
+        if (action === 'timeout') toast('⏰ Order timed out', { icon: '⏰' });
       } else if (action === 'taken') {
         setIncoming(prev => prev.filter(o => o.orderId !== orderId));
       }
     } catch (err) {
-      console.error('Order decision error:', err);
       toast.error('Network error');
     }
   }, [adminId]);
@@ -178,7 +160,9 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-white">
         <div className="text-center">
-          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="animate-spin text-3xl">⏳</div>
+          </div>
           <p className="text-gray-500">Loading...</p>
         </div>
       </div>
@@ -186,40 +170,32 @@ export default function AdminDashboard() {
   }
 
   return (
-    <Layout>
-      <div className="max-w-5xl mx-auto animate-fadeIn">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-              Welcome, {adminName}! 👋
-            </h1>
-            <p className="text-gray-500 mt-1">Here's your overview</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Connection Status */}
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-              isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-              {isConnected ? 'Live' : 'Offline'}
-            </div>
-            <button onClick={handleLogout} className="btn-secondary text-sm">
-              Logout
-            </button>
-          </div>
+    <AdminLayout 
+      isConnected={isConnected} 
+      onLogout={handleLogout}
+      adminName={adminName}
+    >
+      <div className="animate-fadeIn">
+        {/* Welcome Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">
+            Welcome back, {adminName}! 👋
+          </h1>
+          <p className="text-gray-500 mt-1">Here's your overview for today</p>
         </div>
 
         {/* Incoming Orders Alert */}
         {incoming.length > 0 && (
-          <div className="mb-6 card p-4 bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 animate-pulse">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl animate-bounce">🔔</span>
+          <div className="mb-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-6 shadow-xl shadow-orange-500/30 text-white animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                <span className="text-3xl animate-bounce">🔔</span>
+              </div>
               <div>
-                <p className="font-bold text-orange-700 text-lg">
+                <p className="font-bold text-xl">
                   {incoming.length} New Order{incoming.length > 1 ? 's' : ''} Waiting!
                 </p>
-                <p className="text-orange-600 text-sm">Accept quickly before they expire</p>
+                <p className="text-orange-100">Accept quickly before they expire</p>
               </div>
             </div>
           </div>
@@ -227,85 +203,151 @@ export default function AdminDashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card p-6 text-center bg-gradient-to-br from-green-50 to-white">
-            <div className="text-4xl mb-2">💰</div>
-            <div className="text-3xl font-bold text-green-600">₹{stats?.totalEarnings || 0}</div>
-            <div className="text-gray-500 mt-1">Total Earnings</div>
+          <div className="bg-white rounded-2xl p-6 shadow-xl shadow-gray-200/50 border border-gray-100 hover:shadow-2xl transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/30">
+                <span className="text-2xl">💰</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Total Earnings</p>
+                <p className="text-3xl font-extrabold text-gray-900">₹{stats?.totalEarnings || 0}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">
+                ✓ All time
+              </span>
+            </div>
           </div>
-          <div className="card p-6 text-center bg-gradient-to-br from-blue-50 to-white">
-            <div className="text-4xl mb-2">✅</div>
-            <div className="text-3xl font-bold text-blue-600">{stats?.deliveredCount || 0}</div>
-            <div className="text-gray-500 mt-1">Completed</div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-xl shadow-gray-200/50 border border-gray-100 hover:shadow-2xl transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <span className="text-2xl">✅</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Completed</p>
+                <p className="text-3xl font-extrabold text-gray-900">{stats?.deliveredCount || 0}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-full">
+                Delivered orders
+              </span>
+            </div>
           </div>
-          <div className="card p-6 text-center bg-gradient-to-br from-orange-50 to-white">
-            <div className="text-4xl mb-2">⏳</div>
-            <div className="text-3xl font-bold text-orange-600">{stats?.pendingCount || 0}</div>
-            <div className="text-gray-500 mt-1">In Progress</div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-xl shadow-gray-200/50 border border-gray-100 hover:shadow-2xl transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <span className="text-2xl">⏳</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">In Progress</p>
+                <p className="text-3xl font-extrabold text-gray-900">{stats?.pendingCount || 0}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-1 rounded-full">
+                Active orders
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Link href="/admin/orders" className="card p-4 text-center hover:shadow-lg transition-shadow group">
-            <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📋</div>
-            <p className="font-medium text-gray-700">My Orders</p>
-            <p className="text-xs text-gray-500">View & manage</p>
-          </Link>
-          <Link href="/admin/settings" className="card p-4 text-center hover:shadow-lg transition-shadow group">
-            <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">⚙️</div>
-            <p className="font-medium text-gray-700">Settings</p>
-            <p className="text-xs text-gray-500">Payment info</p>
-          </Link>
-          <div className="card p-4 text-center bg-gray-50 cursor-not-allowed opacity-60">
-            <div className="text-3xl mb-2">📊</div>
-            <p className="font-medium text-gray-700">Analytics</p>
-            <p className="text-xs text-gray-500">Coming soon</p>
-          </div>
-          <div className="card p-4 text-center bg-gray-50 cursor-not-allowed opacity-60">
-            <div className="text-3xl mb-2">💬</div>
-            <p className="font-medium text-gray-700">Support</p>
-            <p className="text-xs text-gray-500">Coming soon</p>
+        <div className="mb-8">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link 
+              href="/admin/orders" 
+              className="bg-white rounded-2xl p-5 shadow-lg shadow-gray-200/50 border border-gray-100 hover:shadow-xl hover:border-orange-200 hover:scale-[1.02] transition-all group"
+            >
+              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-orange-100 transition-colors">
+                <span className="text-2xl">📋</span>
+              </div>
+              <p className="font-semibold text-gray-800">My Orders</p>
+              <p className="text-xs text-gray-500 mt-1">View & manage</p>
+            </Link>
+
+            <Link 
+              href="/admin/settings" 
+              className="bg-white rounded-2xl p-5 shadow-lg shadow-gray-200/50 border border-gray-100 hover:shadow-xl hover:border-orange-200 hover:scale-[1.02] transition-all group"
+            >
+              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-orange-100 transition-colors">
+                <span className="text-2xl">⚙️</span>
+              </div>
+              <p className="font-semibold text-gray-800">Settings</p>
+              <p className="text-xs text-gray-500 mt-1">Payment info</p>
+            </Link>
+
+            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 opacity-60 cursor-not-allowed">
+              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
+                <span className="text-2xl">📊</span>
+              </div>
+              <p className="font-semibold text-gray-600">Analytics</p>
+              <p className="text-xs text-gray-400 mt-1">Coming soon</p>
+            </div>
+
+            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 opacity-60 cursor-not-allowed">
+              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
+                <span className="text-2xl">💬</span>
+              </div>
+              <p className="font-semibold text-gray-600">Support</p>
+              <p className="text-xs text-gray-400 mt-1">Coming soon</p>
+            </div>
           </div>
         </div>
 
         {/* Recent Orders */}
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Recent Orders</h2>
-            <Link href="/admin/orders" className="text-orange-600 hover:text-orange-700 text-sm font-medium">
-              View All →
+        <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
+            <Link href="/admin/orders" className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center gap-1">
+              View All <span>→</span>
             </Link>
           </div>
+          
           {recentOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <span className="text-5xl mb-4 block">📭</span>
-              <p className="text-gray-500">No orders yet. Accept an order to get started!</p>
+            <div className="p-12 text-center">
+              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">📭</span>
+              </div>
+              <p className="text-gray-800 font-semibold mb-1">No orders yet</p>
+              <p className="text-gray-500 text-sm">Accept an order to get started!</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {recentOrders.map((order, i) => (
-                <div key={order.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    order.status === 'DELIVERED' ? 'bg-green-100' : 'bg-orange-100'
+            <div className="divide-y divide-gray-50">
+              {recentOrders.map((order) => (
+                <Link
+                  key={order.id}
+                  href={`/admin/requests/${order.id}`}
+                  className="flex items-center gap-4 p-4 hover:bg-orange-50/50 transition-colors"
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    order.status === 'DELIVERED' 
+                      ? 'bg-green-100 text-green-600' 
+                      : 'bg-orange-100 text-orange-600'
                   }`}>
                     {order.status === 'DELIVERED' ? '✅' : '⏳'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{order.name}</p>
-                    <p className="text-sm text-gray-500">{order.status}</p>
+                    <p className="font-semibold text-gray-900 truncate">{order.name}</p>
+                    <p className="text-sm text-gray-500">{order.status.replace(/_/g, ' ')}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-green-600">₹{order.total || 0}</p>
                   </div>
-                </div>
+                  <span className="text-gray-300">→</span>
+                </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Order Popups - Fixed position */}
+        {/* Order Popups */}
         <div className="fixed bottom-4 right-4 z-50 space-y-4">
-          {incoming.map((ord, index) => (
+          {incoming.map((ord) => (
             <AdminOrderPopup
               key={ord.orderId}
               order={ord}
@@ -315,6 +357,6 @@ export default function AdminDashboard() {
           ))}
         </div>
       </div>
-    </Layout>
+    </AdminLayout>
   );
 }
