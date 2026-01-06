@@ -1,43 +1,50 @@
-import prisma from '../../../lib/prisma'
+import prisma, { withRetry } from '../../../lib/prisma'
 import { withRateLimit } from '../../../lib/rateLimit'
 
 async function handler(req, res) {
   if (req.method === 'POST') {
-    const { name, address, cartImageUrl, notes, phone } = req.body || {}
+    try {
+      const { name, address, cartImageUrl, notes, phone } = req.body || {}
 
-    if (!name || !address || !cartImageUrl) {
-      return res.status(400).json({ error: 'Name, address and cart image are required' })
-    }
+      if (!name || !address || !cartImageUrl) {
+        return res.status(400).json({ error: 'Name, address and cart image are required' })
+      }
 
-    // Create the user request
-    const created = await prisma.userRequest.create({
-      data: { 
-        name, 
-        phone: phone || '',
-        address, 
-        cartImageUrl, 
-        notes: notes || null 
-      },
-    })
+      // Create the user request with retry
+      const created = await withRetry(async () => {
+        return prisma.userRequest.create({
+          data: { 
+            name, 
+            phone: phone || '',
+            address, 
+            cartImageUrl, 
+            notes: notes || null 
+          },
+        })
+      })
 
     // Create an order and broadcast to all available admins
     let orderCreated = false
     let broadcastSuccess = false
     
     try {
-      const order = await prisma.order.create({
-        data: { 
-          requestId: created.id, 
-          status: 'broadcasted',
-          expiresAt: new Date(Date.now() + 60 * 1000) // 60 second timeout
-        },
+      const order = await withRetry(async () => {
+        return prisma.order.create({
+          data: { 
+            requestId: created.id, 
+            status: 'broadcasted',
+            expiresAt: new Date(Date.now() + 60 * 1000) // 60 second timeout
+          },
+        })
       })
       orderCreated = true
 
       // Get all available admins
-      const availableAdmins = await prisma.admin.findMany({ 
-        where: { status: 'available' },
-        select: { id: true, name: true }
+      const availableAdmins = await withRetry(async () => {
+        return prisma.admin.findMany({ 
+          where: { status: 'available' },
+          select: { id: true, name: true }
+        })
       })
       
       console.log('📋 New order created:', order.id)
@@ -105,6 +112,13 @@ async function handler(req, res) {
       orderCreated,
       broadcastSuccess
     })
+    } catch (err) {
+      console.error('❌ Error creating request:', err)
+      return res.status(500).json({ 
+        error: 'Failed to create request', 
+        message: err.message || 'Database error'
+      })
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

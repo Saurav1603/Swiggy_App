@@ -31,7 +31,7 @@ async function handler(req, res) {
       id: request.id,
       orderId: request.orders?.[0]?.id || null,
       customerName: request.name,
-      restaurantName: request.restaurantName || 'Not specified',
+      restaurantName: 'Food Order',
       address: request.address,
       status: request.status,
       totalAmount: request.pricing?.foodPrice || 0,
