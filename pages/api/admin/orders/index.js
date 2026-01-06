@@ -13,11 +13,14 @@ async function handler(req, res) {
       return res.status(401).json({ error: 'Admin ID not found in token' })
     }
 
-    // Find orders assigned to this admin
+    // Find orders assigned to this admin OR orders without assignment (legacy)
     const orders = await withRetry(async () => {
       return prisma.order.findMany({
         where: {
-          assignedAdminId: adminId
+          OR: [
+            { assignedAdminId: adminId },
+            { assignedAdminId: null } // Include unassigned/legacy orders
+          ]
         },
         include: {
           request: {
@@ -32,7 +35,22 @@ async function handler(req, res) {
       })
     })
 
-    // Format orders for the frontend
+    // Also fetch UserRequests that don't have any Order (legacy requests)
+    const requestsWithoutOrders = await withRetry(async () => {
+      return prisma.userRequest.findMany({
+        where: {
+          orders: { none: {} } // Requests without any Order record
+        },
+        include: {
+          pricing: true,
+          payment: true,
+          tracking: true
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+    })
+
+    // Format orders from Order table
     const formattedOrders = orders
       .filter(order => order.request)
       .map(order => ({
@@ -50,7 +68,27 @@ async function handler(req, res) {
         notes: order.request.notes
       }))
 
-    return res.status(200).json(formattedOrders)
+    // Format legacy requests (without Order records)
+    const legacyOrders = requestsWithoutOrders.map(request => ({
+      id: request.id,
+      orderId: null,
+      customerName: request.name,
+      restaurantName: request.restaurantName || 'Not specified',
+      address: request.address,
+      status: request.status,
+      totalAmount: request.pricing?.foodPrice || 0,
+      estimatedTotal: request.pricing?.foodPrice || 0,
+      screenshotUrl: request.cartImageUrl,
+      items: [],
+      createdAt: request.createdAt,
+      notes: request.notes
+    }))
+
+    // Combine and sort by createdAt
+    const allOrders = [...formattedOrders, ...legacyOrders]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+    return res.status(200).json(allOrders)
   } catch (err) {
     console.error('Get admin orders error:', err)
     return res.status(503).json({ 
