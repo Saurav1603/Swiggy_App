@@ -1,27 +1,30 @@
-import prisma from '../../../lib/prisma';
+import prisma, { withRetry } from '../../../lib/prisma';
 import { getAdminFromRequest } from '../../../lib/adminAuth';
 
 export default async function handler(req, res) {
   // Only allow GET
   if (req.method !== 'GET') return res.status(405).end();
   
-  // Get admin ID from token
-  const admin = getAdminFromRequest(req);
-  const adminId = admin?.id;
+  try {
+    // Get admin ID from token
+    const admin = getAdminFromRequest(req);
+    const adminId = admin?.id;
 
-  if (!adminId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // Get orders assigned to this admin
-  const adminOrders = await prisma.order.findMany({
-    where: { assignedAdminId: adminId },
-    include: { 
-      request: { 
-        include: { pricing: true } 
-      } 
+    if (!adminId) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-  });
+
+    // Get orders assigned to this admin
+    const adminOrders = await withRetry(async () => {
+      return prisma.order.findMany({
+        where: { assignedAdminId: adminId },
+        include: { 
+          request: { 
+            include: { pricing: true } 
+          } 
+        }
+      })
+    });
 
   // Filter delivered orders for this admin
   const delivered = adminOrders.filter(o => o.request?.status === 'DELIVERED');
@@ -43,10 +46,14 @@ export default async function handler(req, res) {
       total: o.request.pricing?.total || 0,
     }));
 
-  res.json({
-    totalEarnings,
-    deliveredCount,
-    pendingCount,
-    recentOrders,
-  });
+    res.json({
+      totalEarnings,
+      deliveredCount,
+      pendingCount,
+      recentOrders,
+    });
+  } catch (err) {
+    console.error('Earnings API error:', err);
+    res.status(500).json({ error: 'Failed to fetch earnings', message: err.message });
+  }
 }
