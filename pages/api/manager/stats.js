@@ -15,17 +15,20 @@ export default async function handler(req, res) {
       offlineAdmins,
       totalRequests,
       pendingRequests,
-      completedRequests,
+      deliveredRequests,
+      newRequests,
       todayRequests,
-      totalRevenue
+      totalRevenue,
+      todayRevenue
     ] = await Promise.all([
       prisma.admin.count(),
       prisma.admin.count({ where: { status: 'available' } }),
       prisma.admin.count({ where: { status: 'busy' } }),
       prisma.admin.count({ where: { status: 'offline' } }),
       prisma.userRequest.count(),
-      prisma.userRequest.count({ where: { status: { in: ['WAITING_FOR_PRICE', 'PRICE_SENT', 'PAYMENT_PENDING'] } } }),
+      prisma.userRequest.count({ where: { status: { in: ['PRICE_SENT', 'PAYMENT_PENDING', 'PAYMENT_RECEIVED', 'ORDER_PLACED'] } } }),
       prisma.userRequest.count({ where: { status: 'DELIVERED' } }),
+      prisma.userRequest.count({ where: { status: 'WAITING_FOR_PRICE' } }),
       prisma.userRequest.count({
         where: {
           createdAt: {
@@ -37,6 +40,17 @@ export default async function handler(req, res) {
         _sum: { total: true },
         where: {
           request: { status: 'DELIVERED' }
+        }
+      }),
+      prisma.pricing.aggregate({
+        _sum: { total: true },
+        where: {
+          request: { 
+            status: 'DELIVERED',
+            createdAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0))
+            }
+          }
         }
       })
     ])
@@ -78,11 +92,13 @@ export default async function handler(req, res) {
       requests: {
         total: totalRequests,
         pending: pendingRequests,
-        completed: completedRequests,
+        delivered: deliveredRequests,
+        new: newRequests,
         today: todayRequests
       },
       revenue: {
-        total: totalRevenue._sum.total || 0
+        total: totalRevenue._sum.total || 0,
+        today: todayRevenue._sum.total || 0
       },
       recentRequests,
       adminPerformance: adminPerformance.map(a => ({

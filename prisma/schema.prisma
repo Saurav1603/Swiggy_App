@@ -38,6 +38,9 @@ model UserRequest {
   tracking     Tracking?
   remarks      String? // Admin/user remarks/comments
   orders       Order[]
+  cancelReason String?
+  cancelledAt  DateTime?
+  cancelledBy  String?
 }
 
 model Order {
@@ -60,6 +63,7 @@ enum OrderStatus {
   in_progress
   completed
   expired
+  cancelled
 }
 
 model OrderDecline {

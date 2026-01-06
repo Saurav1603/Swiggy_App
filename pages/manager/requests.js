@@ -145,6 +145,7 @@ export default function ManageRequests() {
                 <div className="divide-y divide-white/10">
                   {requests.map((req) => {
                     const statusConfig = STATUS_CONFIG[req.status] || STATUS_CONFIG.WAITING_FOR_PRICE;
+                    const assignedAdmin = req.orders?.[0]?.assignedAdmin;
                     return (
                       <div
                         key={req.id}
@@ -161,7 +162,14 @@ export default function ManageRequests() {
                             <div>
                               <div className="font-bold text-white">{req.name}</div>
                               <div className="text-sm text-white/50 truncate max-w-xs">{req.address}</div>
-                              <div className="text-xs text-white/40 mt-1">{formatDate(req.createdAt)}</div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="text-xs text-white/40">{formatDate(req.createdAt)}</div>
+                                {assignedAdmin && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">
+                                    👤 {assignedAdmin.name}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="text-right">
@@ -274,6 +282,22 @@ export default function ManageRequests() {
                     )}
                   </div>
                 </div>
+
+                {/* Assigned Admin */}
+                {selectedRequest.orders?.[0]?.assignedAdmin && (
+                  <div className="p-6 border-b border-white/10">
+                    <h3 className="font-bold text-white mb-4">👨‍💼 Assigned Admin</h3>
+                    <div className="flex items-center gap-3 p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                        {selectedRequest.orders[0].assignedAdmin.name?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">{selectedRequest.orders[0].assignedAdmin.name}</div>
+                        <div className="text-white/50 text-sm">{selectedRequest.orders[0].assignedAdmin.email}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Cart Image */}
                 {selectedRequest.cartImageUrl && (
