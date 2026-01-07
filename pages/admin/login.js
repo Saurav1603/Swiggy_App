@@ -33,7 +33,8 @@ export default function AdminLogin() {
 
       if (res.ok) {
         localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminId', data.admin.id);
+        localStorage.setItem('adminId', data.adminId || data.admin?.id);
+        localStorage.setItem('adminName', data.admin?.name || 'Admin');
         toast.success('Login successful!');
         router.push('/admin/dashboard');
       } else {
