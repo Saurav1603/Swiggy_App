@@ -13,38 +13,46 @@ async function handler(req, res) {
       return res.status(401).json({ error: 'Admin ID not found in token' })
     }
 
-    // Fetch ALL UserRequests directly (the source of truth for orders)
-    const requests = await withRetry(async () => {
-      return prisma.userRequest.findMany({
+    // Fetch orders assigned to THIS admin only
+    const orders = await withRetry(async () => {
+      return prisma.order.findMany({
+        where: {
+          assignedAdminId: adminId
+        },
         include: {
-          pricing: true,
-          payment: true,
-          tracking: true,
-          orders: true
+          request: {
+            include: {
+              pricing: true,
+              payment: true,
+              tracking: true
+            }
+          }
         },
         orderBy: { createdAt: 'desc' }
       })
     })
 
-    // Format all requests as orders
-    const allOrders = requests.map(request => ({
-      id: request.id,
-      orderId: request.orders?.[0]?.id || null,
-      customerName: request.name,
-      restaurantName: 'Food Order',
-      address: request.address,
-      status: request.status,
-      totalAmount: request.pricing?.foodPrice || 0,
-      estimatedTotal: request.pricing?.foodPrice || 0,
-      screenshotUrl: request.cartImageUrl,
-      items: [],
-      createdAt: request.createdAt,
-      notes: request.notes,
-      cancelReason: request.cancelReason,
-      cancelledAt: request.cancelledAt
-    }))
+    // Format orders for the frontend
+    const adminOrders = orders
+      .filter(order => order.request)
+      .map(order => ({
+        id: order.request.id,
+        orderId: order.id,
+        customerName: order.request.name,
+        restaurantName: 'Food Order',
+        address: order.request.address,
+        status: order.request.status,
+        totalAmount: order.request.pricing?.foodPrice || 0,
+        estimatedTotal: order.request.pricing?.foodPrice || 0,
+        screenshotUrl: order.request.cartImageUrl,
+        items: [],
+        createdAt: order.createdAt,
+        notes: order.request.notes,
+        cancelReason: order.request.cancelReason,
+        cancelledAt: order.request.cancelledAt
+      }))
 
-    return res.status(200).json(allOrders)
+    return res.status(200).json(adminOrders)
   } catch (err) {
     console.error('Get admin orders error:', err)
     return res.status(503).json({ 
